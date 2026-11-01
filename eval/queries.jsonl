@@ -1,0 +1,27 @@
+# One query per line. expect = document ids that answer it (any match = hit). Empty expect = the corpus has no answer; the generator should decline.
+{"q": "What does fullCompanyYlt do and how big is the export?", "expect": ["faq-company-ylt-size", "doc-reports"], "note": "exact field name: sparse should win"}
+{"q": "Which endpoint exports security scores for a portfolio?", "expect": ["faq-export-security-scores", "doc-api"], "note": "endpoint path tokens"}
+{"q": "What is the aggregate cost-component ID order used in reports?", "expect": ["doc-severity-module"], "note": "identifier-heavy"}
+{"q": "Which scenarios use the hybrid footprint HFP?", "expect": ["doc-footprint-module"], "note": "acronym"}
+{"q": "How are PM v6 identifiers different from v5.5?", "expect": ["doc-api", "faq-api-ids-guid"]}
+{"q": "What are the seven return periods in the company year loss tables?", "expect": ["doc-model-outputs"]}
+{"q": "how much can I spend on a hotel in London", "expect": ["pol-expenses-travel"], "collection": "policies", "note": "vague policy phrasing: dense should help"}
+{"q": "am I allowed to use my own laptop for work", "expect": ["pol-acceptable-use"], "collection": "policies"}
+{"q": "how quickly must a critical vulnerability be patched", "expect": ["pol-information-security", "pol-secure-development"], "collection": "policies"}
+{"q": "what happens to accounts when someone leaves the company", "expect": ["pol-access-requests-offboarding"], "collection": "policies", "note": "paraphrase of offboarding"}
+{"q": "can I paste client data into ChatGPT", "expect": ["pol-ai-tools", "pol-data-classification"], "collection": "policies"}
+{"q": "how long do we keep application logs", "expect": ["pol-retention-backups", "pol-information-security"], "collection": "policies"}
+{"q": "when is a change considered significant and who approves it", "expect": ["pol-change-management"], "collection": "policies"}
+{"q": "working from another country for a month", "expect": ["pol-remote-work"], "collection": "policies", "note": "no shared keyword with 'abroad'"}
+{"q": "How do I download a loss metrics report?", "expect": ["faq-download-loss-metrics"], "collection": "faqs", "note": "near-duplicate of an FAQ title"}
+{"q": "by company report is empty", "expect": ["faq-by-company-reports-missing"], "collection": "faqs"}
+{"q": "rotate api key", "expect": ["faq-api-key-rotation"], "collection": "faqs"}
+{"q": "analysis running for a long time, is it frozen?", "expect": ["faq-analysis-stuck"], "collection": "faqs", "note": "'frozen' vs 'stuck'"}
+{"q": "which companies could not be matched to your database", "expect": ["faq-unmatched-companies"], "collection": "faqs"}
+{"q": "why are two runs with identical settings not identical", "expect": ["faq-losses-differ-between-runs"], "collection": "faqs"}
+{"q": "What decides whether an exposed company actually suffers a loss?", "expect": ["doc-impact-module"], "note": "meaning, not keywords"}
+{"q": "How is the severity intensity level chosen for scenario 20?", "expect": ["doc-severity-intensity-module"]}
+{"q": "What is the difference between OEP and AEP?", "expect": ["doc-model-outputs"]}
+{"q": "In what order are deductibles, limits and participation applied?", "expect": ["doc-financial-loss-module"]}
+{"q": "What is the capital of France?", "expect": [], "note": "not in corpus: must decline"}
+{"q": "What is our parental leave policy?", "expect": [], "collection": "policies", "note": "no such policy in the sample set: must decline"}

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Enterprise search demo</title>
+<style>
+  :root { --ink:#1f2933; --muted:#6b7280; --line:#e5e7eb; --blue:#0b5fff; --soft:#f3f6fb; --bg:#ffffff; --amber:#b45309; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --ink:#e5e7eb; --muted:#9ca3af; --line:#374151; --blue:#60a5fa; --soft:#1f2937; --bg:#111827; --amber:#fbbf24; } }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  main { max-width: 880px; margin: 0 auto; padding: 24px 16px 60px; }
+  h1 { font-size: 22px; margin: 0 0 4px; } .sub { color: var(--muted); margin: 0 0 20px; }
+  form { display:grid; grid-template-columns: 1fr; gap: 10px; }
+  input[type=text] { width:100%; box-sizing:border-box; padding:12px 14px; font-size:16px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--ink); }
+  .row { display:flex; flex-wrap:wrap; gap:14px; align-items:center; font-size:14px; color:var(--muted); }
+  .row label { display:flex; align-items:center; gap:6px; }
+  select, button { padding:8px 12px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font-size:14px; }
+  button.primary { background:var(--blue); color:#fff; border-color:var(--blue); cursor:pointer; }
+  .presets button { padding:4px 10px; font-size:13px; }
+  .presets button[aria-pressed="true"] { background:var(--soft); border-color:var(--blue); }
+  #answer { margin-top: 24px; padding: 16px 18px; border:1px solid var(--line); border-radius:10px; background:var(--soft); white-space: pre-wrap; }
+  #answer.notfound { border-color: var(--amber); }
+  .cite { color: var(--blue); font-weight:600; text-decoration:none; }
+  h2 { font-size: 15px; margin: 22px 0 8px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  ol.sources { list-style:none; padding:0; margin:0; display:grid; gap:8px; }
+  ol.sources li { border:1px solid var(--line); border-radius:8px; padding:10px 12px; }
+  ol.sources li.used { border-color: var(--blue); }
+  .meta { color:var(--muted); font-size:13px; } .chip { display:inline-block; padding:1px 8px; border-radius:999px; background:var(--soft); font-size:12px; margin-left:6px; }
+  .snippet { margin-top:4px; font-size:14px; }
+  .status { color:var(--muted); font-size:13px; margin-top:12px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Enterprise search</h1>
+  <p class="sub">Policies, product docs and support FAQs. Hybrid retrieval: slide between keyword and semantic. Answers cite their sources.</p>
+  <form id="f">
+    <input type="text" id="q" placeholder="Ask a question, e.g. how do I download a loss metrics report?" autofocus>
+    <div class="row">
+      <label>Collection
+        <select id="collection"><option value="">all</option><option value="product-docs">product docs</option><option value="policies">policies</option><option value="faqs">FAQs</option></select>
+      </label>
+      <label>alpha <input type="range" id="alpha" min="0" max="1" step="0.05" value="0.5"> <span id="alphaVal">0.50</span></label>
+      <span class="presets"><button type="button" data-a="0">keyword</button> <button type="button" data-a="0.5" aria-pressed="true">hybrid</button> <button type="button" data-a="1">semantic</button></span>
+      <label>top k <select id="topk"><option>3</option><option selected>5</option><option>8</option></select></label>
+      <button class="primary" type="submit">Ask</button>
+    </div>
+  </form>
+  <div id="answer" hidden></div>
+  <h2 id="srcHead" hidden>Sources</h2>
+  <ol class="sources" id="sources"></ol>
+  <p class="status" id="status"></p>
+</main>
+<script>
+  const $ = (s) => document.querySelector(s);
+  const alpha = $('#alpha'), alphaVal = $('#alphaVal');
+  const setAlpha = (v) => { alpha.value = v; alphaVal.textContent = Number(v).toFixed(2); document.querySelectorAll('.presets button').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.a) === Number(v)))); };
+  alpha.addEventListener('input', () => setAlpha(alpha.value));
+  document.querySelectorAll('.presets button').forEach(b => b.addEventListener('click', () => setAlpha(b.dataset.a)));
+  fetch('/health').then(r => r.json()).then(h => { $('#status').textContent = `store: ${h.store} · embedder: ${h.embedder} · generator: ${h.generator} · ${h.chunks ?? '?'} chunks`; }).catch(() => {});
+  const esc = (s) => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const safeHref = (u) => /^(https?:|internal:)/i.test(u) ? esc(u) : '#';     // never render javascript: or data: links from document metadata
+  const detailText = (d) => Array.isArray(d) ? d.map(x => x.msg || JSON.stringify(x)).join('; ') : (d ?? '');
+  $('#f').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const body = { question: $('#q').value, alpha: Number(alpha.value), top_k: Number($('#topk').value) };
+    if ($('#collection').value) body.collection = $('#collection').value;
+    $('#answer').hidden = false; $('#answer').className = ''; $('#answer').textContent = 'Searching…';
+    let a;
+    try {
+      const r = await fetch('/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const raw = await r.text();
+      let parsed = null; try { parsed = JSON.parse(raw); } catch (_) { /* plain-text error body */ }
+      if (!r.ok) { $('#answer').className = 'notfound'; $('#answer').textContent = `Error ${r.status}: ${parsed ? detailText(parsed.detail) : raw.slice(0, 300)}`; return; }
+      a = parsed;
+    } catch (err) { $('#answer').className = 'notfound'; $('#answer').textContent = `Request failed: ${err.message}`; return; }
+    const byN = Object.fromEntries(a.sources.map(s => [s.n, s]));
+    $('#answer').className = a.found ? '' : 'notfound';
+    $('#answer').innerHTML = esc(a.text).replace(/\[(\d+)\]/g, (m, n) => byN[n] ? `<a class="cite" href="${safeHref(byN[n].url)}" title="${esc(byN[n].title)}" target="_blank" rel="noreferrer">[${n}]</a>` : m);
+    const used = new Set(a.citations.map(c => c.n));
+    $('#srcHead').hidden = a.sources.length === 0;
+    $('#sources').innerHTML = a.sources.map(s => `<li class="${used.has(s.n) ? 'used' : ''}"><b>[${s.n}]</b> ${esc(s.title)}${s.heading ? ' › ' + esc(s.heading) : ''}<span class="chip">${esc(s.collection)}</span>${s.fictional ? '<span class="chip">fictional demo content</span>' : ''}
+      <div class="meta">score ${s.score} · <a href="${safeHref(s.url)}" target="_blank" rel="noreferrer">${esc(s.url)}</a></div><div class="snippet">${esc(s.snippet)}</div></li>`).join('');
+    $('#status').textContent = `alpha ${a.alpha} · store ${a.mode} · generator ${a.generator} · ${a.citations.length} of ${a.sources.length} sources cited`;
+  });
+</script>
+</body>
+</html>
